@@ -6,7 +6,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import timedelta
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG & BRANDING
@@ -800,14 +801,14 @@ with st.expander("🔍 Raw Data Explorer", expanded=False):
     )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AI CHATBOT — Gemini 2.5 Pro (Rappi CityOps Monitor)
+# AI CHATBOT — Gemini 2.5 Flash (Rappi CityOps Monitor)
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown('<div class="section-title">🤖 Rappi CityOps Monitor — AI Assistant</div>', unsafe_allow_html=True)
 
 # ── Gemini configuration ────────────────────────────────────────────────────
 GEMINI_API_KEY = "AIzaSyBd109ClZlRLV0KoctS7nDmSNGCo3rFUiw"
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 
 @st.cache_data(ttl=3600)
@@ -916,7 +917,7 @@ st.markdown("""
 <div class="chat-container">
     <h4>💬 Rappi CityOps Monitor</h4>
     <p style="color:#6B7280; font-size:0.92rem;">
-        Analista IA de disponibilidad de tiendas — Powered by Gemini 2.5 Pro
+        Analista IA de disponibilidad de tiendas — Powered by Gemini 2.5 Flash
     </p>
     <ul style="color:#6B7280; font-size:0.88rem;">
         <li>"¿Cómo estuvo la operación el lunes?"</li>
@@ -952,18 +953,28 @@ if user_input:
     with st.chat_message("assistant", avatar="🟠"):
         with st.spinner("🔍 Analizando datos..."):
             try:
-                model = genai.GenerativeModel(
-                    model_name="gemini-2.5-pro",
-                    system_instruction=SYSTEM_PROMPT + "\n\n" + data_context,
-                )
-
-                # Build conversation history for context
-                gemini_history = []
+                # Build conversation history for Gemini
+                contents = []
                 for m in st.session_state.gemini_messages:
-                    gemini_history.append({"role": m["role"], "parts": [m["content"]]})
+                    contents.append(types.Content(
+                        role=m["role"],
+                        parts=[types.Part.from_text(text=m["content"])],
+                    ))
+                # Add current user message
+                contents.append(types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=user_input)],
+                ))
 
-                chat = model.start_chat(history=gemini_history)
-                response = chat.send_message(user_input)
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT + "\n\n" + data_context,
+                        temperature=0.3,
+                        max_output_tokens=4096,
+                    ),
+                )
                 assistant_text = response.text
 
                 st.markdown(assistant_text)
