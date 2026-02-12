@@ -211,6 +211,18 @@ DATA_PATH = os.path.join(os.path.dirname(__file__), "Base_Unificada.csv")
 df_raw = load_data(DATA_PATH)
 
 # ─────────────────────────────────────────────────────────────────────────────
+# LOGO
+# ─────────────────────────────────────────────────────────────────────────────
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "rappi-logo-png_seeklogo-312269.png")
+
+@st.cache_data
+def get_logo_base64(path: str) -> str:
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+logo_b64 = get_logo_base64(LOGO_PATH)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # SIDEBAR — USER CONTROLS
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -352,18 +364,6 @@ def resample_data(df: pd.DataFrame, freq: str | None) -> pd.DataFrame:
 
 
 df_plot = resample_data(df, resample_freq)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# LOGO
-# ─────────────────────────────────────────────────────────────────────────────
-LOGO_PATH = os.path.join(os.path.dirname(__file__), "rappi-logo-png_seeklogo-312269.png")
-
-@st.cache_data
-def get_logo_base64(path: str) -> str:
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-logo_b64 = get_logo_base64(LOGO_PATH)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HEADER
