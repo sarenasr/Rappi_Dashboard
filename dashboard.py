@@ -6,6 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import timedelta
 import os
+import base64
 from google import genai
 from google.genai import types
 
@@ -22,14 +23,49 @@ st.set_page_config(
 # ─── Custom CSS ──────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    /* Rappi brand palette */
+    /* ── Light mode (default) ── */
     :root {
         --rappi-orange: #FF441F;
-        --rappi-dark: #1A1A2E;
-        --rappi-light: #F8F9FA;
         --rappi-green: #00C853;
         --rappi-red: #FF1744;
         --rappi-yellow: #FFD600;
+
+        --bg-card: #FFFFFF;
+        --bg-card-shadow: rgba(0,0,0,0.07);
+        --bg-chat: #FFFFFF;
+        --text-primary: #1A1A2E;
+        --text-secondary: #6B7280;
+        --text-muted: #9CA3AF;
+        --section-title-color: #1A1A2E;
+        --sidebar-bg: #1A1A2E;
+    }
+
+    /* ── Dark mode ── */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-card: #1E1E2E;
+            --bg-card-shadow: rgba(0,0,0,0.3);
+            --bg-chat: #1E1E2E;
+            --text-primary: #E8E8F0;
+            --text-secondary: #A0A0B8;
+            --text-muted: #7A7A90;
+            --section-title-color: #E8E8F0;
+            --sidebar-bg: #12121E;
+        }
+    }
+
+    /* Streamlit dark theme override (when user sets it in Streamlit settings) */
+    [data-testid="stAppViewContainer"][data-theme="dark"],
+    .stApp[data-theme="dark"],
+    [data-testid="stAppViewContainer"].st-emotion-cache-dark {
+        --bg-card: #1E1E2E;
+        --bg-card-shadow: rgba(0,0,0,0.3);
+        --bg-chat: #1E1E2E;
+        --text-primary: #E8E8F0;
+        --text-secondary: #A0A0B8;
+        --text-muted: #7A7A90;
+        --section-title-color: #E8E8F0;
+        --sidebar-bg: #12121E;
     }
 
     /* Header bar */
@@ -57,16 +93,16 @@ st.markdown("""
 
     /* KPI cards */
     .kpi-card {
-        background: white;
+        background: var(--bg-card);
         border-radius: 12px;
         padding: 1.2rem 1.4rem;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+        box-shadow: 0 1px 6px var(--bg-card-shadow);
         border-left: 4px solid var(--rappi-orange);
         height: 100%;
     }
     .kpi-card .kpi-label {
         font-size: 0.78rem;
-        color: #6B7280;
+        color: var(--text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.5px;
         font-weight: 600;
@@ -75,21 +111,23 @@ st.markdown("""
     .kpi-card .kpi-value {
         font-size: 1.75rem;
         font-weight: 700;
-        color: #1A1A2E;
+        color: var(--text-primary);
         line-height: 1.2;
     }
     .kpi-card .kpi-delta {
         font-size: 0.82rem;
         margin-top: 0.2rem;
     }
-    .kpi-delta.positive { color: #00C853; }
-    .kpi-delta.negative { color: #FF1744; }
+    .kpi-delta.positive { color: #2ECC71; }
+    .kpi-delta.negative { color: #FF6B6B; }
+    .kpi-delta.muted { color: var(--text-secondary); }
+    .kpi-delta.warn  { color: #FF6B6B; }
 
     /* Section titles */
     .section-title {
         font-size: 1.1rem;
         font-weight: 700;
-        color: #1A1A2E;
+        color: var(--section-title-color);
         margin: 1.5rem 0 0.8rem 0;
         padding-bottom: 0.4rem;
         border-bottom: 2px solid #FF441F;
@@ -98,7 +136,7 @@ st.markdown("""
 
     /* Sidebar styling */
     [data-testid="stSidebar"] {
-        background: #1A1A2E;
+        background: var(--sidebar-bg);
     }
     [data-testid="stSidebar"] * {
         color: white !important;
@@ -114,15 +152,19 @@ st.markdown("""
 
     /* Chat placeholder */
     .chat-container {
-        background: white;
+        background: var(--bg-chat);
         border-radius: 12px;
         padding: 1.5rem;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+        box-shadow: 0 1px 6px var(--bg-card-shadow);
         border: 2px dashed #FF441F;
     }
     .chat-container h4 {
-        color: #FF441F;
+        color: #FF6B3D;
         margin-top: 0;
+    }
+    .chat-container p,
+    .chat-container li {
+        color: var(--text-secondary) !important;
     }
 
     /* Hide Streamlit branding */
@@ -172,7 +214,13 @@ df_raw = load_data(DATA_PATH)
 # SIDEBAR — USER CONTROLS
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🟠 Rappi Controls")
+    st.markdown(
+        f'<div style="text-align:center; padding:0.5rem 0 0.8rem 0;">'
+        f'<img src="data:image/png;base64,{logo_b64}" alt="Rappi" style="height:40px; filter: brightness(0) invert(1);">'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown("## Controls")
     st.markdown("---")
 
     # Date range
@@ -306,13 +354,28 @@ def resample_data(df: pd.DataFrame, freq: str | None) -> pd.DataFrame:
 df_plot = resample_data(df, resample_freq)
 
 # ─────────────────────────────────────────────────────────────────────────────
+# LOGO
+# ─────────────────────────────────────────────────────────────────────────────
+LOGO_PATH = os.path.join(os.path.dirname(__file__), "rappi-logo-png_seeklogo-312269.png")
+
+@st.cache_data
+def get_logo_base64(path: str) -> str:
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+logo_b64 = get_logo_base64(LOGO_PATH)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # HEADER
 # ─────────────────────────────────────────────────────────────────────────────
-st.markdown("""
+st.markdown(f"""
 <div class="rappi-header">
-    <div>
-        <h1>🟠 Rappi Store Availability Monitor</h1>
-        <p>Real‑time visibility into store availability across the platform</p>
+    <div style="display:flex; align-items:center; gap:1rem;">
+        <img src="data:image/png;base64,{logo_b64}" alt="Rappi" style="height:48px; filter: brightness(0) invert(1);">
+        <div>
+            <h1 style="margin:0;">Store Availability Monitor</h1>
+            <p>Real‑time visibility into store availability across the platform</p>
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -368,7 +431,7 @@ with col2:
     <div class="kpi-card">
         <div class="kpi-label">Peak Stores</div>
         <div class="kpi-value">{fmt(peak)}</div>
-        <div class="kpi-delta" style="color:#6B7280;">All‑time high in range</div>
+        <div class="kpi-delta muted">All‑time high in range</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -377,7 +440,7 @@ with col3:
     <div class="kpi-card">
         <div class="kpi-label">Average</div>
         <div class="kpi-value">{fmt(avg)}</div>
-        <div class="kpi-delta" style="color:#6B7280;">Mean availability</div>
+        <div class="kpi-delta muted">Mean availability</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -386,7 +449,7 @@ with col4:
     <div class="kpi-card">
         <div class="kpi-label">Minimum</div>
         <div class="kpi-value">{fmt(minimum)}</div>
-        <div class="kpi-delta" style="color:#FF1744;">Lowest in range</div>
+        <div class="kpi-delta warn">Lowest in range</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -395,7 +458,7 @@ with col5:
     <div class="kpi-card">
         <div class="kpi-label">Stability Index</div>
         <div class="kpi-value">{stability:.1f}%</div>
-        <div class="kpi-delta" style="color:#6B7280;">CV (lower = stable)</div>
+        <div class="kpi-delta muted">CV (lower = stable)</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -405,7 +468,7 @@ with col6:
     <div class="kpi-card">
         <div class="kpi-label">Data Points</div>
         <div class="kpi-value">{fmt(total_points)}</div>
-        <div class="kpi-delta" style="color:#6B7280;">{resample_label} intervals</div>
+        <div class="kpi-delta muted">{resample_label} intervals</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -916,10 +979,10 @@ data_context = build_data_summary(df_raw)
 st.markdown("""
 <div class="chat-container">
     <h4>💬 Rappi CityOps Monitor</h4>
-    <p style="color:#6B7280; font-size:0.92rem;">
+    <p style="font-size:0.92rem;">
         Analista IA de disponibilidad de tiendas — Powered by Gemini 2.5 Flash
     </p>
-    <ul style="color:#6B7280; font-size:0.88rem;">
+    <ul style="font-size:0.88rem;">
         <li>"¿Cómo estuvo la operación el lunes?"</li>
         <li>"¿Hubo problemas el viernes?"</li>
         <li>"Compara entre semana vs fin de semana"</li>
@@ -1001,7 +1064,7 @@ if st.session_state.chat_history:
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
-    '<p style="text-align:center; color:#9CA3AF; font-size:0.8rem;">'
+    '<p style="text-align:center; color:var(--text-muted); font-size:0.8rem;">'
     'Rappi Store Availability Dashboard · Data from Feb 1–11, 2026 · Built with Streamlit & Plotly'
     '</p>',
     unsafe_allow_html=True,
